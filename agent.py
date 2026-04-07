@@ -23,10 +23,18 @@ class AgentState(TypedDict):
 
 
 def _setup_logging() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    LOGGER.setLevel(logging.DEBUG)
+
+    file_handler = logging.FileHandler("travelbuddy.log", encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     )
+    file_handler.setFormatter(formatter)
+
+    LOGGER.handlers = []
+    LOGGER.addHandler(file_handler)
 
 
 def _load_system_prompt() -> str:
@@ -52,13 +60,13 @@ def _content_to_text(content: Any) -> str:
 
 def _log_tool_calls(tool_calls: Iterable[dict[str, Any]] | None) -> None:
     if not tool_calls:
-        LOGGER.info("❌ Không gọi tool")
+        LOGGER.debug("❌ Không gọi tool")
         return
-    LOGGER.info("✅ GỌI TOOL")
+    LOGGER.debug("✅ GỌI TOOL")
     for tc in tool_calls:
         name = tc.get("name", "<unknown>")
         args = tc.get("args", {})
-        LOGGER.info("→ %s(%s)", name, args)
+        LOGGER.debug("→ %s(%s)", name, args)
 
 
 def build_graph() -> Any:
@@ -77,24 +85,24 @@ def build_graph() -> Any:
         if not msgs or not isinstance(msgs[0], SystemMessage):
             msgs = [SystemMessage(content=system_prompt)] + msgs
 
-        # 🔥 DEBUG INPUT
-        print("\n===== DEBUG MESSAGES =====")
+        # 🔥 LOG INPUT (ghi file, không print)
+        LOGGER.debug("===== DEBUG MESSAGES =====")
         for m in msgs:
-            print(f"{type(m).__name__}: {getattr(m, 'content', '')}")
-        print("===== END =====\n")
+            LOGGER.debug(f"{type(m).__name__}: {getattr(m, 'content', '')}")
+        LOGGER.debug("===== END =====")
 
         response = llm_with_tools.invoke(msgs)
 
-        # 🔥 DEBUG RAW RESPONSE
-        print("\n===== RAW RESPONSE =====")
-        print(response)
-        print("===== END =====\n")
+        # 🔥 LOG RAW RESPONSE
+        LOGGER.debug("===== RAW RESPONSE =====")
+        LOGGER.debug(response)
+        LOGGER.debug("===== END =====")
 
         # 🔥 LOG DECISION
         if getattr(response, "tool_calls", None):
-            print("➡️ Agent quyết định: GỌI TOOL")
+            LOGGER.debug("➡️ Agent quyết định: GỌI TOOL")
         else:
-            print("➡️ Agent quyết định: KHÔNG gọi tool")
+            LOGGER.debug("➡️ Agent quyết định: KHÔNG gọi tool")
 
         _log_tool_calls(getattr(response, "tool_calls", None))
 
@@ -127,9 +135,10 @@ def main() -> None:
         if user_input.lower() in {"quit", "exit", "bye"}:
             break
 
-        LOGGER.info("🤔 Thinking...")
         result: AgentState = graph.invoke({"messages": [("human", user_input)]})
         final_msg = result["messages"][-1]
+
+        # 👉 CHỈ HIỂN THỊ OUTPUT
         print(f"\nTravelBuddy: {_content_to_text(getattr(final_msg, 'content', ''))}")
 
 
